@@ -1,0 +1,191 @@
+---
+title: "SV normalization (from Delly) and visualization"
+---
+
+
+SETUP 
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(ggpubr)
+library(tidyr)
+library(ggbreak)
+library(stringr)
+library(dplyr)
+library(rstatix)
+library(vcfR)
+library(export)
+
+# load final dataset, final filtering, and genotyped against all tails
+data.dir <- "/path/to/input/data"
+plot.dir <- "/path/to/output"
+```
+
+LOAD DATA
+```{r, message=FALSE}
+vcf_files_delly <- read.table(file = paste0(data.dir, "paths_post-filtered_vcf_delly.txt"))
+
+# create empty list and names vector 
+data_delly <- data.frame()
+
+# loop through all filtered delly output files to be analyzed 
+for (i in 1:nrow(vcf_files_delly)) {
+  message(paste0("-----------------PROGRESS: ", i, "/", nrow(vcf_files_delly), " -----------------"))
+  
+  vcf_delly <- read.vcfR(vcf_files_delly$V1[i], verbose = F)
+  vcf_tidy_delly <- vcfR2tidy(vcf_delly, single_frame = T, verbose = F)
+  # add NA for empty vcf files
+  vcf_tidy_delly$dat <- add_row(vcf_tidy_delly$dat)
+  # add sample name
+  match <- str_match(vcf_files_delly$V1[i], "filtering/(.*)\\.filtered\\.vcf\\.gz")
+  name <- match[1,2]
+  vcf_tidy_delly$dat$sample <- rep(name, nrow(vcf_tidy_delly$dat))
+  data_delly <- rbind(data_delly, data.frame(vcf_tidy_delly$dat))
+  
+}
+
+# assign experiment groups 
+data_delly$group <- rep(NA, nrow(data_delly))
+for (r in 1:nrow(data_delly)){ # 
+  if (str_detect(data_delly$sample[r], "9A")) {
+    data_delly$group[r] <- "young"
+  } else if (str_detect(data_delly$sample[r], "4A|4B")) {
+    data_delly$group[r] <- "old"
+  } else if (str_detect(data_delly$sample[r], "neg")) {
+    data_delly$group[r] <- "active"
+  } else if (str_detect(data_delly$sample[r], "pos")) {
+    data_delly$group[r] <- "dormant"
+  } else if (str_detect(data_delly$sample[r], "pbs")) {
+    data_delly$group[r] <- "Bak-/- Bax d/d"
+  } 
+} 
+
+# fix sample names 
+data_delly$sample <- str_remove(data_delly$sample, pattern = "LRC-") #LRC=label-retaining mouse
+for (n in 1:nrow(data_delly)) {
+  if (data_delly$group[n] == "LRC") {
+    match1 <- str_match(data_delly$sample[n], pattern = "old[0-9]")
+    match2 <- str_match(data_delly$sample[n], pattern = "-(.*)")
+    data_delly$sample[n] <- str_c(match1[1,1], "_", match2[,2], "_pos") #pos for GFP+
+  } else if (data_delly$group[n] == "nonLRC") {
+    match1 <- str_match(data_delly$sample[n], pattern = "old[0-9]")
+    match2 <- str_match(data_delly$sample[n], pattern = "-(.*)")
+    data_delly$sample[n] <- str_c(match1[1,1], "_", match2[,2], "_neg") #neg for GFP-
+  }
+}
+
+saveRDS(data_delly, paste0(data.dir, Sys.Date(), "_delly_output_list_final.RDS"))
+```
+
+ADD CALLABLE GENOME TO THE DF
+```{r}
+# import calculated callable genome sizes
+call_gen_sizes_delly <- read.table("/.../callable_genome_sizes_delly.txt", header = F, sep = "\t")
+call_gen_sizes_delly <- call_gen_sizes_delly[,1:2]
+colnames(call_gen_sizes_delly) <- c("sample", "callable_genome_size")
+
+data_delly$callable_genome_size <- rep(NA, nrow(data_delly))
+for (c in 1:nrow(data_delly)) {
+  pattern = paste0(data_delly$sample[c], "$")
+  if (sum(grepl(pattern = pattern, call_gen_sizes_delly$sample)) == 1){
+    data_delly$callable_genome_size[c] <- call_gen_sizes_delly[grep(pattern = pattern, 
+                                                            call_gen_sizes_delly$sample), 2]
+  } else {
+    data_delly$callable_genome_size[c] <- NA
+  }
+}  
+
+```
+
+PLOT
+```{r}
+# young vs old -----------------------------------------------------------------------------------------
+young_old_palette<-c("young"="#8DDBE0", 
+                     "old"="#FF7F51")
+data <- data_delly %>% group_by(group, sample, callable_genome_size) %>% count() %>% filter(group %in% c("young", "old"))
+data$group <- factor(data$group, levels = c("young", "old"))
+# workaround for empty vcf files: variant count is (row count - 1); 1 for the header
+data <- data %>% mutate(n = n-1)
+# normalize 
+data <- data %>% mutate(norm = (2730871774 / callable_genome_size) * n)
+
+pdf(file=paste0(plot.dir,"SVs-YvsO.pdf"), width = 2.5, height = 4)
+
+ggplot(data, aes(x = group, y = norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = young_old_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("SVs per mouse genome")+
+  ylim(0,5)
+
+dev.off()
+
+write_csv(data, paste0(plot.dir, "SVspersample_YvsO_norm.csv"))
+
+t_test_SVs_YvsO <- t.test(norm ~ group, data = data)
+print(t_test_SVs_YvsO)
+
+# dormant vs active  ----------------------------------------------------------------------------------
+dorm_active_palette<-c("dormant"="green", 
+                     "active"="grey")
+data <- data_delly %>% group_by(group, sample, callable_genome_size) %>% count() %>% filter(group %in% c("dormant", "active"))
+data$group <- factor(data$group, levels = c("dormant", "active"))
+#count
+data <- data %>% mutate(n = n-1)
+# normalize 
+data <- data %>% mutate(norm = (2730871774 / callable_genome_size) * n)
+
+pdf(file=paste0(plot.dir,"SVs-DvsA.pdf"), width = 2.5, height = 4)
+
+ggplot(data, aes(x = group, y = norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = dorm_active_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("dormant", "active")), 
+                   map_signif_level = TRUE)+
+  ylab("SVs per mouse genome")+
+  ylim(0,5)
+
+dev.off()
+
+write_csv(data, paste0(plot.dir, "SVspersample_DvsA_norm.csv"))
+t_test_SVs_DvsA <- t.test(norm ~ group, data = data)
+print(t_test_SVs_DvsA)
+
+# WT vs Bak-/- Bax d/d -------------------------------------------------------------------------------------------
+###the young group serves as the WT control here since the mice are age-matched.
+young_old_palette<-c("young"="#8DDBE0", 
+                     "Bak-/- Bax d/d"="pink")
+data <- data_delly %>% group_by(group, sample, callable_genome_size) %>% count() %>% filter(group %in% c("young", "Bak-/- Bax d/d"))
+data$group <- factor(data$group, levels = c("young", "Bak-/- Bax d/d"))
+# count
+data <- data %>% mutate(n = n-1)
+# normalize 
+data <- data %>% mutate(norm = (2730871774 / callable_genome_size) * n)
+
+pdf(file=paste0(plot.dir,"SVs-WTvsBB.pdf"), width = 2.5, height = 4)
+
+ggplot(data, aes(x = group, y = norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = dorm_active_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "Bak-/- Bax d/d")), 
+                   map_signif_level = TRUE)+
+  ylab("SVs per mouse genome")+
+  ylim(0,5)
+
+dev.off()
+
+write_csv(data, paste0(plot.dir, "SVspersample_WTvsBB_norm.csv"))
+t_test_SVs_WTvsBB <- t.test(norm ~ group, data = data)
+print(t_test_SVs_WTvsBB)
+
+```
+
