@@ -1,0 +1,300 @@
+---
+title: "VEP Annotation"
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggpubr)
+library(viridis)
+library(rstatix)
+library(ggsci)
+library(splitstackshape)
+library(readxl)
+
+input_dir <- ""
+output_dir <- ""
+plot_dir <- ""
+setwd("")
+```
+
+## LOAD DATA
+```{r message=FALSE}
+pick_files <- read.table(paste0(input_dir, "paths_to_annotated_variants_withpick.txt"))
+
+cols <- c("Uploaded_variation", "Location", "Allele", "Gene", "Feature",
+          "Feature_type", "Consequence", "cDNA_position", "CDS_position",
+          "Protein_position", "Amino_acids", "Codons", "Existing_variation",
+          "IMPACT", "DISTANCE", "STRAND", "FLAGS", "PICK", "VARIANT_CLASS", "SYMBOL",
+          "SYMBOL_SOURCE", "HGNC_ID", "BIOTYPE", "CANONICAL", "CCDS", "ENSP",
+          "SWISSPROT", "TREMBL", "UNIPARC", "UNIPROT_ISOFORM", "GENE_PHENO",
+          "SIFT", "EXON", "INTRON", "DOMAINS", "miRNA", "HGVSc", "HGVSp",
+          "HGVS_OFFSET", "AF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED",
+          "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE",
+          "TRANSCRIPTION_FACTORS")
+
+annot <- data.frame(matrix(ncol = 49, nrow = 0))
+
+for (n in 1:nrow(pick_files)) {
+  add <- read.table(pick_files[n,], sep = "\t", header = F, comment.char = "#",
+                    col.names = cols, na.strings = c("-"))
+  add$file <- paste0(pick_files[n,])
+  annot <- rbind(annot, add)
+}
+
+rm(add, pick_files, cols, n)
+```
+
+## FORMAT
+```{r}
+# Extract sample names
+annot <- annot %>%
+  mutate(sample = str_extract(file, "pick_results_Feb24/(.*)_variant_effects", group = 1))
+
+# Add group based on sample name patterns
+annot <- annot %>%
+  mutate(group = case_when(
+    str_detect(sample, "9A")      ~ "young",
+    str_detect(sample, "4A|4B")   ~ "old",
+    str_detect(sample, "neg")     ~ "active",
+    str_detect(sample, "pos")     ~ "dormant",
+    str_detect(sample, "pbs")     ~ "Bak-/- Bax d/d",
+    TRUE                          ~ NA_character_
+  ))
+```
+
+## FILTER
+```{r}
+# Filter out BND translocations (VEP cannot annotate them)
+annot <- annot %>% filter(!str_detect(Uploaded_variation, "BND"))
+
+# Keep only PICK==1 variants
+annot <- annot %>% filter(PICK == 1)
+
+saveRDS(annot, paste0(output_dir, Sys.Date(), "_all_variant_annotation_all_colony_groups.rds"))
+```
+
+## FILTER VEP OUTPUT COLUMNS
+```{r}
+# Identify and remove columns with no results (all NA)
+rm_cols <- as_tibble(colSums(is.na(annot)))
+rm_cols$name <- colnames(annot)
+empty_cols <- rm_cols %>% filter(value == nrow(annot))
+write_csv(rm_cols, paste0(output_dir, "no_results_columns_VEP_PICK.csv"))
+
+annot <- annot %>%
+  select(-c(HGNC_ID, UNIPROT_ISOFORM, AF, CLIN_SIG, SOMATIC, PHENO, PUBMED,
+            MOTIF_NAME, MOTIF_POS, HIGH_INF_POS, MOTIF_SCORE_CHANGE, TRANSCRIPTION_FACTORS))
+
+saveRDS(annot, paste0(output_dir, Sys.Date(), "_all_variant_annotation_all_colony_groups.rds"))
+```
+
+## PLOT - Young vs Old
+```{r}
+# Unnest comma-separated consequences
+sub <- annot %>%
+  mutate(Consequence = strsplit(as.character(Consequence), ",")) %>%
+  unnest(cols = c(Consequence))
+
+# Color palettes
+color.vec_conseq <- c(
+  "intron_variant"                     = "coral2",
+  "upstream_gene_variant"              = "darkslategrey",
+  "splice_region_variant"              = "lightgoldenrod1",
+  "5_prime_UTR_variant"                = "darkolivegreen2",
+  "missense_variant"                   = "skyblue4",
+  "frameshift_variant"                 = "#D6616B",
+  "splice_donor_variant"               = "#393B79",
+  "intergenic_variant"                 = "violetred4",
+  "regulatory_region_variant"          = "tan1",
+  "NMD_transcript_variant"             = "cornflowerblue",
+  "synonymous_variant"                 = "lightpink4",
+  "transcript_ablation"                = "#9dbf00",
+  "inframe_insertion"                  = "lightgoldenrod1",
+  "inframe_deletion"                   = "#424242",
+  "non_coding_transcript_variant"      = "#ecae00",
+  "downstream_gene_variant"            = "#ff2600",
+  "3_prime_UTR_variant"                = "seagreen4",
+  "feature_truncation"                 = "darkslategrey",
+  "regulatory_region_ablation"         = "#DCE319FF",
+  "coding_sequence_variant"            = "#238dd2",
+  "stop_gained"                        = "#9c3568"
+)
+
+color.vec_eff <- c(
+  "feature_truncation"        = "#56B4E9",
+  "frameshift_variant"        = "#1B9E77",
+  "inframe_deletion"          = "#A6761D",
+  "inframe_insertion"         = "goldenrod1",
+  "missense_variant"          = "#D55E00",
+  "regulatory_region_ablation"= "violetred4",
+  "stop_gained"               = "#E78AC3",
+  "transcript_ablation"       = "indianred3"
+)
+
+# Variant type vectors
+posit_vec <- c("3_prime_UTR_variant", "5_prime_UTR_variant", "coding_sequence_variant",
+               "downstream_gene_variant", "intergenic_variant", "intron_variant",
+               "non_coding_transcript_exon_variant", "non_coding_transcript_variant",
+               "regulatory_region_variant", "splice_donor_variant", "splice_region_variant",
+               "upstream_gene_variant")
+
+eff_vec <- c("feature_truncation", "frameshift_variant", "inframe_deletion", "inframe_insertion",
+             "missense_variant", "NMD_transcript_variant", "regulatory_region_ablation",
+             "regulatory_region_amplification", "stop_gained", "stop_lost",
+             "synonymous_variant", "transcript_ablation")
+
+# Filter to Young vs Old
+YvsO_data_annot <- sub %>% filter(group %in% c("young", "old"))
+
+posit_df <- YvsO_data_annot %>% filter(Consequence %in% posit_vec)
+eff_df   <- YvsO_data_annot %>% filter(Consequence %in% eff_vec)
+
+# Check overlaps between positional and effect consequences
+commonalities <- inner_join(posit_df, eff_df, by = "Location")
+cat("Unique locations with both positional and effect annotations:", 
+    length(unique(commonalities$Location)), "\n")
+
+write_csv(eff_df, paste0(plot_dir, "variants_with_effect_YvsO.csv"))
+
+# Unique variant counts per group
+unique_pos_variants_per_group <- posit_df %>%
+  group_by(group) %>%
+  summarise(CountUniqueVariants  = n_distinct(Uploaded_variation),
+            CountUniqueLocations = n_distinct(Location))
+print(unique_pos_variants_per_group)
+
+write_csv(posit_df, paste0(plot_dir, "position_variants_annotation_VEP_YvsO.csv"))
+
+variant_counts_YvsO <- posit_df %>%
+  group_by(Uploaded_variation, Location, Consequence, IMPACT, SYMBOL, CANONICAL, group, sample) %>%
+  summarise(Count = n(), .groups = 'drop')
+
+write_csv(variant_counts_YvsO, paste0(plot_dir, "counts_per_variant_YvsO_VEP.csv"))
+
+# Deduplication: keep single-entry variants + canonical from multi-entry variants
+variant_entry_counts <- variant_counts_YvsO %>%
+  group_by(Location, sample) %>%
+  summarise(EntryCount = n(), .groups = 'drop')
+
+variant_counts_with_info <- variant_counts_YvsO %>%
+  left_join(variant_entry_counts, by = c("Location", "sample"))
+
+variants_with_single_entry   <- variant_counts_with_info %>% filter(EntryCount == 1)
+variants_with_multiple_entries <- variant_counts_with_info %>% filter(EntryCount > 1)
+
+canonical_from_multiples <- variants_with_multiple_entries %>% filter(CANONICAL == "YES")
+
+write_csv(
+  canonical_from_multiples %>%
+    group_by(Location, sample) %>% filter(n() > 1),
+  paste0(plot_dir, "canonical_multiplets_tobefiltered.csv")
+)
+
+FINAL2_position_annotation_df <- rbind(variants_with_single_entry, canonical_from_multiples)
+
+# Merge non_coding_transcript_exon_variant into non_coding_transcript_variant
+recode_noncoding <- function(df) {
+  df %>% mutate(Consequence = recode(Consequence,
+    "non_coding_transcript_exon_variant" = "non_coding_transcript_variant"))
+}
+
+FINAL2_position_annotation_df <- recode_noncoding(FINAL2_position_annotation_df)
+posit_df                       <- recode_noncoding(posit_df)
+
+FINAL2_position_annotation_df$group <- factor(FINAL2_position_annotation_df$group, levels = c("young", "old"))
+posit_df$group                       <- factor(posit_df$group, levels = c("young", "old"))
+eff_df$group                         <- factor(eff_df$group, levels = c("young", "old"))
+
+# Helper to build n-label data
+make_n_labels <- function(df) {
+  df %>% group_by(group) %>% count() %>%
+    mutate(lab = str_c("n=", n), y = 1.1)
+}
+
+# Helper to build stacked bar plot
+make_stacked_bar <- function(df, fill_var, palette, n_labels) {
+  ggplot(df, aes(x = group, fill = .data[[fill_var]])) +
+    geom_bar(position = "fill", stat = "count") +
+    scale_y_continuous(name = "Relative Contribution", expand = c(0, 0)) +
+    geom_text(data = n_labels, aes(x = group, y = y, label = lab),
+              vjust = 0.95, inherit.aes = FALSE) +
+    labs(fill = "") +
+    theme_classic() +
+    scale_x_discrete(name = "", labels = c("Young", "Old")) +
+    scale_fill_manual(values = palette) +
+    theme(axis.text.x  = element_text(size = 14, vjust = 0.9, hjust = 0.95),
+          axis.text.y  = element_text(size = 14),
+          axis.title   = element_text(size = 14, face = "bold"),
+          legend.text  = element_text(size = 14),
+          legend.position = "right")
+}
+
+# Plot: filtered positional consequences
+final_annot_plot_posit_filtered <- make_stacked_bar(
+  FINAL2_position_annotation_df, "Consequence", color.vec_conseq,
+  make_n_labels(FINAL2_position_annotation_df))
+
+pdf(file = paste0(plot_dir, "final_annot_plot_posit.pdf"), width = 7, height = 4.3)
+final_annot_plot_posit_filtered
+dev.off()
+
+cont_filtered_posit <- table(FINAL2_position_annotation_df$Consequence,
+                             FINAL2_position_annotation_df$group)
+print(chisq.test(cont_filtered_posit))
+
+# Plot: unfiltered positional consequences
+annot_plot_posit_unfiltered <- make_stacked_bar(
+  posit_df, "Consequence", color.vec_conseq, make_n_labels(posit_df))
+
+pdf(file = paste0(plot_dir, "annot_plot_posit_unfiltered_touse_YvsO.pdf"), height = 4.3, width = 7)
+annot_plot_posit_unfiltered
+dev.off()
+
+print(chisq.test(table(posit_df$Consequence, posit_df$group)))
+
+# Plot: effect consequences
+effect_prediction_plot <- make_stacked_bar(
+  eff_df, "Consequence", color.vec_eff, make_n_labels(eff_df))
+
+pdf(file = paste0(plot_dir, "effect_variants_annot_plot_YvsO.pdf"), height = 4.3, width = 7)
+effect_prediction_plot
+dev.off()
+
+print(chisq.test(table(eff_df$Consequence, eff_df$group)))
+```
+
+## INDELS - Young vs Old
+```{r}
+annot_data <- readRDS(paste0(input_dir, "all_variant_annotation_all_colony_groups.rds"))
+
+sub <- annot_data %>%
+  mutate(Consequence = strsplit(as.character(Consequence), ",")) %>%
+  unnest(cols = c(Consequence))
+
+YvsO_data_annot <- sub %>% filter(group %in% c("young", "old"))
+saveRDS(YvsO_data_annot, paste0(input_dir, "YvsO_annot_data_ALL_variants.rds"))
+
+# Filter to indels only
+YvsO_indels <- YvsO_data_annot %>%
+  filter(!grepl("DEL", Uploaded_variation, ignore.case = TRUE)) %>%
+  filter(VARIANT_CLASS != "SNV") %>%
+  filter(VARIANT_CLASS != "copy_number_variation") %>%
+  mutate(VARIANT_CLASS = ifelse(VARIANT_CLASS == "indel", "complex", VARIANT_CLASS)) %>%
+  distinct(Uploaded_variation, Location, Allele, VARIANT_CLASS, sample, group, .keep_all = TRUE) %>%
+  mutate(group = factor(group, levels = c("young", "old")))
+
+saveRDS(YvsO_indels, paste0(input_dir, "Annot_data_INDELS_only_UNIQUEentries_YvsO.rds"))
+
+indels.color.vec <- c("deletion" = "coral1", "insertion" = "cornflowerblue", "complex" = "#FDE725")
+
+unique_indel_types <- make_stacked_bar(
+  YvsO_indels, "VARIANT_CLASS", indels.color.vec, make_n_labels(YvsO_indels))
+
+pdf(file = paste0(plot_dir, "indel_types_YvsO_unique_17012024.pdf"), width = 5, height = 5)
+unique_indel_types
+dev.off()
+
+cont_indel_types <- table(YvsO_indels$VARIANT_CLASS, YvsO_indels$group)
+print(cont_indel_types)
+print(chisq.test(cont_indel_types))
+```
