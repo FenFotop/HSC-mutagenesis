@@ -1,0 +1,285 @@
+---
+title: "Benchmarking"
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(mgcv)
+library(purrr)
+library(multcompView)
+
+
+
+input_dir="/.../"
+output_dir="/.../"
+```
+
+Quantify confident calls
+```{r}
+# 90X = gold standard - create it first by intersecting all 3 seeds
+df_90X <- lapply(1:3, function(s) {
+  readRDS(paste0(input_dir, "sample_control_90X-seed", s, "-RB17-6_HSC_G1_vs_sample_control_RB17-6_Tail_filtered.rds")) %>%
+    as.data.frame() %>% .[, c(1,2,4,5)]
+})
+
+gold_90X <- Reduce(dplyr::intersect, df_90X)
+saveRDS(gold_90X, file = paste0(output_dir, "golden_variant_list_90X_inter.rds"))
+
+# For all other coverages, intersect each seed against the gold standard
+coverages <- c(80, 70, 60, 50, 40, 30, 20, 10)
+
+for (cov in coverages) {
+  for (s in 1:3) {
+    df <- readRDS(paste0(input_dir, "sample_control_", cov, "X-seed", s, 
+                         "_RB17-6_HSC_G1_vs_sample_control_RB17-6_Tail_filtered.rds")) %>%
+      as.data.frame() %>% .[, c(1,2,4,5)]
+    
+    overlap <- dplyr::intersect(gold_90X, df)
+    saveRDS(overlap, file = paste0(output_dir, "/", cov, "X/overlap_", cov, "X_", s, "_vs_gold_90X.rds"))
+  }
+}
+```
+
+Plot
+```{r}
+plot_dir="/.../"
+
+#Plot 1: plot the number of variants per coverage
+benchmark <- do.call(rbind, lapply(coverages, function(cov) {
+  if (cov == 90) {
+    # gold standard: single intersection file
+    n <- nrow(readRDS(paste0(output_dir, "golden_variant_list_90X_inter.rds")))
+    data.frame(Coverage = paste0(cov, "X"), No_of_called_variants = n)
+  } else {
+    do.call(rbind, lapply(1:3, function(s) {
+      n <- nrow(readRDS(paste0(output_dir, "/", cov, "X/overlap_", cov, "X_", s, "_vs_gold_90X.rds")))
+      data.frame(Coverage = paste0(cov, "X"), No_of_called_variants = n)
+    }))
+  }
+}))
+
+benchmark$Coverage <- factor(benchmark$Coverage, levels = paste0(coverages, "X"))
+
+caveman_no_variants<-ggplot(benchmark, aes(x=Coverage, y=No_of_called_variants)) +
+  geom_boxplot(fill="#1982C4")+
+  geom_point()+
+  stat_summary(fun = mean, geom = "line", aes(group = 1), color = "#1BE7FF", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", color = "#1BE7FF", size = 3) +
+  theme_minimal(base_size=18)+
+  ylim(50, 170)
+
+
+pdf(file=paste0(plot_dir, "number_of_variants_filtered_per_coverage_CAVEMAN_corrected.pdf"), width = 5, height = 4)
+caveman_no_variants
+dev.off()
+
+#Plot 2: percentage of overlapping variants with the gold_90X.
+gold_count <- nrow(gold_90X)
+
+benchmark$overlap <- do.call(c, lapply(coverages, function(cov) {
+  if (cov == 90) {
+    nrow(readRDS(paste0(output_dir, "golden_variant_list_90X_inter.rds")))
+  } else {
+    sapply(1:3, function(s) {
+      nrow(readRDS(paste0(output_dir, "/", cov, "X/overlap_", cov, "X_", s, "_vs_gold_90X.rds")))
+    })
+  }
+}))
+
+
+benchmark$percentage_of_overlap <- benchmark$overlap * 100 / gold_count
+saveRDS(benchmark, paste0(plot_dir, "benchmark_summary_CAVEMAN_corrected.rds"))
+
+caveman_perc_overlap<-ggplot(benchmark, aes(x=Coverage, y=percentage_of_overlap)) +
+  geom_boxplot(fill="#32A287")+
+  geom_point()+
+  stat_summary(fun = mean, geom = "line", aes(group = 1), color = "#40F99B", linewidth = 1) +
+  stat_summary(fun = mean, geom = "point", color = "#40F99B", size = 3) +
+  theme_minimal(base_size=16)+
+  scale_y_continuous(breaks=seq(0,100,10))
+
+
+pdf(file=paste0(plot_dir, "perc_of_overlap_per_coverage_CAVEMAN_corrected.pdf"), width = 5.5, height = 4)
+caveman_perc_overlap
+dev.off()
+```
+
+Stats:
+```{r}
+anova_caveman_number_of_variants<- aov(No_of_called_variants ~ Coverage, data = benchmark)
+tukey_variants <- TukeyHSD(anova_caveman_number_of_variants)
+print(tukey_variants)
+
+anova_caveman_overlap<- aov(percentage_of_overlap ~ Coverage, data = benchmark)
+tukey_overlap <- TukeyHSD(anova_caveman_overlap)
+print(tukey_overlap)
+
+
+benchmark <- na.omit(benchmark)
+benchmark$depth_numeric <- as.numeric(gsub("X", "", benchmark$Coverage))
+loess_fit_caveman <- loess(No_of_called_variants ~ depth_numeric, data = benchmark, span = 0.75)
+
+depth_seq_caveman <- seq(min(benchmark$depth_numeric), max(benchmark$depth_numeric), length.out = 100)
+predicted_caveman <- predict(loess_fit_caveman, newdata = data.frame(depth_numeric = depth_seq_caveman))
+
+##check how it looks
+ggplot(benchmark, aes(x = depth_numeric, y = No_of_called_variants)) +
+  geom_point(size = 2) +
+  geom_line(data = data.frame(depth_numeric = depth_seq_caveman, fitted = predicted_caveman),
+            aes(x = depth_numeric, y = fitted), color = "blue", size = 1) +
+  theme_minimal() +
+  xlab("Coverage (X)") +
+  ylab("No. of Called Variants")
+
+
+#####What is the right span value ?
+spans<-seq(0.2, 1.5, by=0.05)
+
+# Define LOOCV function (Leave-One-Out Cross-Validation)
+loocv_error <- function(span_val) {
+  preds <- rep(NA, nrow(caveman))
+  
+  for (i in seq_len(nrow(caveman))) {
+    train <- caveman[-i, ]
+    test  <- caveman[i, ]
+    
+    model <- try(loess(No_of_called_variants ~ depth_numeric, data = train, span = span_val), silent = TRUE)
+    
+    if (!inherits(model, "try-error")) {
+      preds[i] <- predict(model, newdata = test)
+    }
+  }
+  
+  mean((caveman$No_of_called_variants - preds)^2, na.rm = TRUE)
+}
+
+###Evaluate the error for each span
+cv_results <- tibble(
+  span = spans,
+  mse = map_dbl(spans, loocv_error)
+)
+
+# Plot CV error vs span
+pdf(file="/.../LOOCV_for_LOESS_Caveman_No_of_variants.pdf", width = 5.5, height = 4)
+ggplot(cv_results, aes(x = span, y = mse)) +
+  geom_line(color = "blue") +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "LOOCV: Choosing Optimal LOESS Span",
+       x = "Span", y = "Mean Squared Error")
+dev.off()
+
+# Best span
+best_span <- cv_results$span[which.min(cv_results$mse)] ###the value is 0.45
+
+
+###Continue with span = 0.45
+loess_fit_caveman_optim <- loess(No_of_called_variants ~ depth_numeric, data = caveman, span = 0.45)
+depth_seq_caveman_optim <- seq(min(caveman$depth_numeric), max(caveman$depth_numeric), length.out = 100)
+predicted_caveman_optim <- predict(loess_fit_caveman_optim, newdata = data.frame(depth_numeric = depth_seq_caveman), se=TRUE)
+
+loess_df_caveman <- data.frame(
+  depth_numeric = depth_seq_caveman_optim,
+  fit = predicted_caveman_optim$fit,
+  se = predicted_caveman_optim$se.fit
+)
+
+# Add upper and lower bounds (approx 95% CI)
+loess_df_caveman$lower <- loess_df_caveman$fit - 1.96 * loess_df_caveman$se
+loess_df_caveman$upper <- loess_df_caveman$fit + 1.96 * loess_df_caveman$se
+
+
+pdf(file="/.../LOESS_Caveman_No_of_variants.pdf", width = 5.5, height = 4)
+ggplot() +
+  geom_point(data = caveman, mapping = aes(x = depth_numeric, y = No_of_called_variants), size = 2) +
+  geom_ribbon(data = loess_df_caveman, mapping = aes(x = depth_numeric, ymin = lower, ymax = upper), 
+              alpha = 0.2, fill = "#1BE7FF") +
+  geom_line(data = loess_df_caveman, mapping = aes(x = depth_numeric, y = fit), 
+            color = "#1982C4", size = 1) +
+  scale_x_continuous(breaks = c(10, 20, 30, 40, 50, 60, 70, 80, 89)) +
+  theme_minimal() +
+  xlab("Coverage (X)") +
+  ylab("No. of Called Variants")
+dev.off()
+
+
+##Check if the curve is significant
+gam_model_caveman_vars <- gam(No_of_called_variants ~ s(depth_numeric, k=5), data = benchmark)
+length(unique(benchmark$depth_numeric))
+summary(gam_model_caveman_vars)$s.table[1, "p-value"]
+
+
+#######Do the same for percentage overlap in caveman
+loess_fit_caveman_overlap <- loess(percentage_of_overlap ~ depth_numeric, data = benchmark, span = 0.75)
+depth_seq_caveman_overlap <- seq(min(benchmark$depth_numeric), max(benchmark$depth_numeric), length.out = 100)
+predicted_caveman_overlap <- predict(loess_fit_caveman_overlap, newdata = data.frame(depth_numeric = depth_seq_caveman_overlap))
+
+
+##check how it looks
+ggplot(benchmark, aes(x = depth_numeric, y = percentage_of_overlap)) +
+  geom_point(size = 2) +
+  geom_line(data = data.frame(depth_numeric = depth_seq_caveman_overlap, fitted = predicted_caveman_overlap),
+            aes(x = depth_numeric, y = fitted), color = "blue", size = 1) +
+  theme_minimal() +
+  xlab("Coverage (X)") +
+  ylab("% of overlap")
+
+
+
+spans<-seq(0.2, 1.5, by=0.05)
+
+
+###Evaluate the error for each span and plot CV
+cv_results <- tibble(
+  span = spans,
+  mse = map_dbl(spans, loocv_error)
+)
+
+pdf(file="/.../LOOCV_for_LOESS_Caveman_overlap.pdf", width = 5.5, height = 4)
+ggplot(cv_results, aes(x = span, y = mse)) +
+  geom_line(color = "blue") +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "LOOCV: Choosing Optimal LOESS Span",
+       x = "Span", y = "Mean Squared Error")
+dev.off()
+
+#Best span
+best_span <- cv_results$span[which.min(cv_results$mse)] ###the value is 0.45 again
+loess_fit_caveman_overlap <- loess(percentage_of_overlap ~ depth_numeric, data = benchmark, span = 0.45)
+depth_seq_caveman_overlap <- seq(min(benchmark$depth_numeric), max(benchmark$depth_numeric), length.out = 100)
+predicted_caveman_overlap <- predict(loess_fit_caveman_overlap, newdata = data.frame(depth_numeric = depth_seq_caveman_overlap), se=TRUE)
+
+loess_df_caveman_overlap <- data.frame(
+  depth_numeric = depth_seq_caveman_overlap,
+  fit = predicted_caveman_overlap$fit,
+  se = predicted_caveman_overlap$se.fit
+)
+
+# Add upper and lower bounds (approx 95% CI)
+loess_df_caveman_overlap$lower <- loess_df_caveman_overlap$fit - 1.96 * loess_df_caveman_overlap$se
+loess_df_caveman_overlap$upper <- loess_df_caveman_overlap$fit + 1.96 * loess_df_caveman_overlap$se
+
+
+pdf(file="/.../LOESS_Caveman_percentage_overlap_09-06-2025.pdf", width = 5.5, height = 4)
+ggplot() +
+  geom_point(data = caveman, mapping = aes(x = depth_numeric, y = percentage_of_overlap), size = 2) +
+  geom_ribbon(data = loess_df_caveman_overlap, mapping = aes(x = depth_numeric, ymin = lower, ymax = upper), 
+              alpha = 0.2, fill = "#40F99B") +
+  geom_line(data = loess_df_caveman_overlap, mapping = aes(x = depth_numeric, y = fit), 
+            color = "#32A287", size = 1) +
+  scale_x_continuous(breaks = c(10, 20, 30, 40, 50, 60, 70, 80, 89)) +
+  theme_minimal() +
+  xlab("Coverage (X)") +
+  ylab("% of overlap")
+dev.off()
+
+
+##Check if the curve is significant
+gam_model_caveman_overlap <- gam(percentage_of_overlap ~ s(depth_numeric, k=5), data = caveman)
+length(unique(caveman$depth_numeric))
+summary(gam_model_caveman_overlap)$s.table[1, "p-value"]
+
+```
+Same workflow was followed for pindel results
