@@ -1,0 +1,196 @@
+---
+title: "variant-boxplots"
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggpubr)
+library(patchwork)
+library(cowplot)
+library(ggplot2)
+library(ggrain)
+```
+Set directories and load data
+```{r}
+setwd("/.../")
+input_dir="/.../final_dataset_colonies/"
+output_dir="/.../plots_stats/"
+
+full_cave_data<-readRDS(paste0(input_dir,"2023-04-18_filtered_caveman_output_values_normalized_allsamples.RDS"))
+full_cave_data$group<-as.factor(full_cave_data$group)
+
+full_pindel_data<-readRDS(paste0(input_dir, "2023-04-18_filtered_pindel_output_values_normalized_allsamples.RDS"))
+full_pindel_data$group<-as.factor(full_pindel_data$group)
+```
+
+Young versus Old - SNVs and Indels
+```{r}
+#example with SNVs only
+YvsO_data<- full_cave_data %>% filter(group %in% c("young", "old"))
+YvsO_data <- droplevels(YvsO_data) 
+YvsO_data$group<-factor(YvsO_data$group, levels = c("young", "old"))
+
+young_old_palette<-c("#8DDBE0", "#FF7F51")
+
+pdf(file=paste0(output_dir,"SNVs_YvsO_boxplot_27122023.pdf"), width = 2.5, height = 4)
+
+YvsO_SNV<-ggplot(YvsO_data, aes(x = group, y = snvs_norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = young_old_palette2)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("SNVs per mouse genome")
+
+dev.off()
+
+####Wilcox
+yo_snv<-wilcox.test(snvs_norm~group, data=YvsO_data, alternative="two.sided")
+print(yo_snv)
+  
+##Prepare the df for linear regression --> x axis in months
+YvsO_data <- YvsO_data %>% mutate(Age = case_when(
+    group == "young" ~ "8", 
+    group == "old" ~ "24"   
+  ))
+
+YvsO_data$Age<-as.numeric(YvsO_data$Age)
+
+model_SNV_LR <- lm(snvs_norm ~ Age, data = YvsO_data)
+summary(model_SNV_LR)
+
+pdf(file=paste0(output_dir, "SNVs_YvsO_LinRegr_27122023.pdf"), width = 4, height = 3)
+SNV_LR<-ggplot(YvsO_data, aes(x = Age, y = snvs_norm, color = Age)) +
+  geom_point(size=5, alpha=0.7) +                                  # Add points
+  geom_smooth(method = "lm", se = TRUE, color="grey", size=0.5)+
+  theme_classic()+
+  scale_color_gradient(low = "#8DDBE0", high = "#FF7F51")+
+  ylab("SNVs per mouse genome")+
+  xlab("Age (in months)")+
+  scale_x_continuous(breaks = seq(0, 24, by = 2), limits = c(0, 24))+
+  ylim(0,200)
+dev.off()
+```
+
+ApoptosisKO vs WT - SNVs and Indels
+```{r}
+#example with SNVs
+palette2=c("deepskyblue4", "#B95F89")
+
+BBWT_data<- full_cave_data %>% filter(group %in% c("young", "Bak-/- Bax d/d"))
+BBWT_data <- droplevels(BBWT_data) 
+BBWT_data$group<-factor(BBWT_data$group, levels = c("young", "Bak-/- Bax d/d"))
+
+pdf(file=paste0(output_dir,"SNVs_BBvsWT_boxplot_01022024.pdf"), width = 2.5, height = 4)
+ggplot(BBWT_data, aes(x = group, y = snvs_norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = palette2)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "Bak-/- Bax d/d")), 
+                   map_signif_level = TRUE)+
+  ylab("SNVs per mouse genome")
+dev.off()
+
+##Wilcox
+wtbb_snv<-wilcox.test(snvs_norm~group, data=BBWT_data, alternative="two.sided")
+print(wtbb_snv)
+```
+
+Dormant vs Active - SNVs and Indels
+```{r}
+#example with SNVs
+palette3=c("#399E5A",  "#B5B2C2")
+
+dormacyc_data<- full_cave_data %>% filter(group %in% c("dormant", "active"))
+dormacyc_data <- droplevels(dormacyc_data) 
+dormacyc_data$group<-factor(dormacyc_data$group, levels = c("dormant", "active"))
+
+pdf(file=paste0(output_dir,"SNVs_dormancyvscycling_boxplot_01022024.pdf"), width = 2.5, height = 4)
+ggplot(dormacyc_data, aes(x = group, y = snvs_norm , fill = group)) + 
+  geom_boxplot(outlier.shape=NA) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = palette3)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("dormant", "active")), 
+                   map_signif_level = TRUE)+
+  ylab("SNVs per mouse genome")
+dev.off()
+
+###wilcox
+LRC_snv<-wilcox.test(snvs_norm~group, data=dormacyc_data, alternative="two.sided")
+print(LRC_snv)
+```
+
+Linear regression for young-dormant and young-active
+```{r}
+#LRC_LR_data<- full_cave_data %>% filter(group %in% c("young", "dormant", "active"))
+#LRC_LR_data <- droplevels(LRC_LR_data) 
+#LRC_LR_data$group<-factor(LRC_LR_data$group, levels = c("young", "dormant", "active"))
+
+#LRC_LR_data <- LRC_LR_data %>% mutate(Age = case_when(
+#    group == "dormant" ~ "22",  
+#    group == "active" ~ "22", 
+#    group == "young" ~ "8" 
+#  ))
+
+#LRC_LR_data$Age<-as.numeric(LRC_LR_data$Age)
+
+##split into two datasets: 1) young-dormant, 2) young-active
+yd_data<-full_cave_data %>% filter(group %in% c("young", "dormant"))
+ya_data<- full_cave_data %>% filter(group %in% c("young", "active"))
+
+yd_data <- youngLRC_data %>% mutate(Age = case_when(
+    group == "dormant" ~ "22", 
+    group == "young" ~ "8" 
+  ))
+
+yd_data$group<-droplevels(yd_data$group)
+yd_data$group<-factor(yd_data$group, levels=c("young", "dormant"))
+yd_data$Age<-as.numeric(yd_data$Age)
+
+ya_data <- ya_data %>% mutate(Age = case_when(
+    group == "active" ~ "22",  
+    group == "young" ~ "8" 
+  ))
+ya_data$group<-droplevels(ya_data$group)
+ya_data$group<-factor(ya_data$group, levels=c("young", "active"))
+ya_data$Age<-as.numeric(ya_data$Age)
+
+
+model_SNV_dormant <- lm(snvs_norm ~ Age, data = yd_data)
+summary(model_SNV_dormant)
+
+model_SNV_active <- lm(snvs_norm ~ Age, data = ya_data)
+summary(model_SNV_active)
+
+
+LRCcombined<-rbind(ya_data, yd_data)
+LRCcombined$snvs_norm<-as.numeric(LRCcombined$snvs_norm)
+LRCcombined$group<-droplevels(LRCcombined$group)
+LRCcombined$Age<-as.numeric(as.character(LRCcombined$Age))
+LRCcombined$group<-factor(LRCcombined$group, levels=c("young", "dormant", "active"))
+
+
+pdf(file=paste0(output_dir, "LRC-nonLRC-LinRegression_02022024.pdf"), width = 5, height = 4.5)
+ggplot(LRCcombined, aes(x = Age, y = snvs_norm, color = group)) +
+  geom_point(position=position_jitter(h=0.1, w=0.2),size=5, alpha=0.7) +     
+  geom_smooth(data=youngnonLRC_data, aes(x = Age, y = snvs_norm), method = "lm", se = TRUE, color="grey18", size=0.6) +
+  geom_smooth(data=youngLRC_data, aes(x = Age, y = snvs_norm), method = "lm", se = TRUE, color="#399E5A", fill="#399E5A", size=0.6) +
+  theme_classic() +
+  scale_color_manual(values=c("deepskyblue4", "#399E5A", "black"), name = "Age Group") +
+  ylab("SNVs per mouse genome") +
+  xlab("Age (in months)") +
+  scale_x_continuous(breaks = seq(0, 24, by = 2), limits = c(0, 24)) +
+  ylim(0,200)
+
+dev.off()
+
+```
+
+
