@@ -1,0 +1,306 @@
+---
+title: "MutationalPatterns-SNVs"
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(MutationalPatterns)
+library(BSgenome) 
+library(gridExtra)
+library(cowplot)
+library(ggplot2)
+library(GenomicRanges)
+library(ggsci)
+library(wesanderson)
+library(colorspace)
+library(ComplexHeatmap)
+library(patchwork)
+
+setwd("")
+dir=""
+plot_dir=""
+vcf_dir="/path/to/vcfs/concatenated/per/mouse"
+
+ref_genome <- "BSgenome.Mmusculus.UCSC.mm10"
+library(ref_genome, character.only = TRUE)
+```
+
+
+```{r}
+mouse_vcf_list<-list.files(vcf_dir, pattern = "vcf.gz", full.names = TRUE)
+sample_names <- gsub("_concat\\.vcf\\.gz$", "", basename(mouse_vcf_list))
+
+# Keep a named index for tracking
+sample_index <- setNames(seq_along(sample_names), sample_names)
+print(sample_index)
+
+##create the vcf object
+mouse_vcf_obj <- read_vcfs_as_granges(mouse_vcf_list, sample_names, ref_genome, predefined_dbs_mbs = TRUE)
+
+#Add group metadata
+group<- c(rep("active", 3), rep("dormant",3), rep("old", 3), rep("young", 3)) 
+
+mouse_vcf_obj@metadata$group<-as.factor(group)
+
+saveRDS(mouse_vcf_obj, paste0(dir, "mouse_vcf_obj_YOLRC.rds"))
+
+#Clean
+rm(mouse_vcf_names, sample_names, i, mouse_vcf_list)
+```
+
+Mutation characteristics
+```{r}
+##Retrieve base substitution types from the VCF GRangesList object as “REF>ALT” 
+mouse_muts<-mutations_from_vcf(mouse_vcf_obj[[1]])
+
+#Extract the conventional substitutions (purine>anything)
+mouse_types_sub<-mut_type(mouse_vcf_obj[[1]])
+
+#Retrieve the context (trinucleotides) for all the samples of the vcf objects
+mouse_context<-type_context(mouse_vcf_obj[[1]], ref_genome)
+lapply(mouse_context, head, 12)
+
+#Count the mutation type occurrences for all the vcf objects in the GRangesLists
+mouse_mut_occurrences<-mut_type_occurrences(mouse_vcf_obj, ref_genome)
+
+#Create the trinucl matrix
+mouse_mut_matrix<-mut_matrix(vcf_list=mouse_vcf_obj, ref_genome = ref_genome)
+saveRDS(mouse_mut_matrix, paste0(paste0(dir, "mouse_mut_matrix.rds")))
+
+#Pool the groups for the trinucleotide plots
+pooled_mouse_mut_matrix<-pool_mut_mat(mouse_mut_matrix, grouping = mouse_vcf_obj@metadata$group)
+write.csv(pooled_mouse_mut_matrix, paste0(plot_dir, "mouse_mut_matrix_pergroup.csv"))
+
+YvsO_trinucl<-plot_96_profile(pooled_mouse_mut_matrix[, c(3,4)], condensed = TRUE)
+
+CycvsDorm_trinucl<-plot_96_profile(pooled_mouse_mut_matrix[, c(1,2)], condensed = TRUE)
+```
+
+Strict refitting -- According to the authors of the package, the refit can be accurate with as little as 50 mutations per signature.
+```{r}
+#Impport COSMIC signatures
+known_signatures<-get_known_signatures()
+#Add the HSPC signature
+stored_sigs <- read.table(paste0(dir, "ref_SBS_signatures_incl_hspc.txt"), header = T)
+sigs_hspc <- cbind(stored_sigs$HSPC, known_signatures)
+colnames(sigs_hspc)[1] <- 'HSPC'
+known_signatures<-sigs_hspc
+
+mouse_strict_refit <- fit_to_signatures_strict(mouse_mut_matrix, known_signatures, max_delta = 0.35)
+mouse_strict_fit_res<- mouse_strict_refit$fit_res
+plot_contribution(mouse_strict_fit_res$contribution, coord_flip = FALSE, mode = "relative")
+```
+
+Try refitting with the "best subset" method as well as it can be more accurate if we apply prior biological knowledge. 
+eg. from the signatures that were chosen in the strict refitting above, I can filter out the ones that according to biology have no meaning in the dataset.
+Try refitting with bootstrap, only for a subset of signatures that make sense
+```{r}
+selected_signatures<-known_signatures[,c(1, 2, 4, 6, 7, 12, 26, 39)] #Start with the signatures: HSPC, SBS1, SBS3, SBS5, SBS6, SBS8, SBS18, SBS32
+
+mouse_bootstrap <- fit_to_signatures_bootstrapped(mouse_mut_matrix, selected_signatures, n_boots=150, method="strict")
+
+plot_bootstrapped_contribution(mouse_bootstrap) #SBS3, SBS6, SBS32 are rarely called. I remove and re-run the bootstrapping. Remaining signatures are the ones usually reported in hematological datasets: HSPC, SBS1, SBS5, SBS18
+
+selected_signatures<-known_signatures[,c(1, 2, 6, 26)]
+mouse_bootstrap <- fit_to_signatures_bootstrapped(mouse_mut_matrix, selected_signatures, n_boots=150, method="strict")
+
+plot_bootstrapped_contribution(mouse_bootstrap, mode = "relative") 
+saveRDS(mouse_bootstrap, paste0(plot_dir, "mouse_bootstrap_object_150runs_strict.rds"))
+
+
+plot_bootstrapped_contribution(mouse_bootstrap, mode = "relative", plot_type = "dotplot")
+
+
+#Subset the mouse_bootstrap for the plot
+young_old_indices = grep("young|old", rownames(mouse_bootstrap))
+
+# Subset the matrix using the indices
+YvsO_bootstrap = mouse_bootstrap[young_old_indices, ]
+saveRDS(YvsO_bootstrap, paste0(plot_dir, "YvsO_mouse_bootstrap.rds"))
+
+plot_bootstrapped_contribution(YvsO_bootstrap, mode="relative", plot_type = "dotplot")
+
+
+ActivevsDormant_indices=grep("active|dormant", rownames(mouse_bootstrap))
+ActivevsDormant_bootstrap = mouse_bootstrap[ActivevsDormant_indices, ]
+saveRDS(ActivevsDormant_bootstrap, paste0(plot_dir, "ActivevsDormant_mouse_bootstrap_matrix.rds"))
+
+plot_bootstrapped_contribution(CyclingvsDormant_bootstrap, mode="relative", plot_type = "dotplot")
+```
+
+Calculate the average relative contribution of each signature from the bootstraps
+```{r}
+row_total_strict<-rowSums(mouse_bootstrap)
+mouse_bootstrap_relative_contributions <- sweep(mouse_bootstrap, 1, row_total_strict, FUN="/")
+
+saveRDS(mouse_bootstrap_relative_contributions, paste0(plot_dir, "mouse_bootstrap_strict_matrix_relative_contributions.rds" ))
+
+mouse_bootstrap_relative_contributions<-as.data.frame(mouse_bootstrap_relative_contributions)
+mouse_bootstrap_relative_contributions$Sample<-rownames(mouse_bootstrap_relative_contributions)
+mouse_bootstrap_relative_contributions$BaseSampleName <- gsub("_[^_]+$", "", mouse_bootstrap_relative_contributions$Sample)
+
+mouse_bootstrap_average_contributions_strict <- mouse_bootstrap_relative_contributions %>%
+  group_by(BaseSampleName) %>%
+  summarise(across(-Sample, mean, na.rm = TRUE))
+
+saveRDS(mouse_bootstrap_average_contributions_strict, paste0(plot_dir, "sigs_average_relative_contributions_strict.rds"))
+```
+
+Check the similarity between mutational profiles and signatures
+```{r}
+cos_sim(mouse_mut_matrix[,1], known_signatures[,1])
+
+cos_sim_samples_signatures<-cos_sim_matrix(mouse_mut_matrix, selected_signatures)
+cos_sim_samples_signatures[7:12, ]
+saveRDS(cos_sim_samples_signatures, paste0(dir,"cosine_similarity_between_samples_selected_sigs_YOLRC.rds"))
+
+
+plot_cosine_heatmap(cos_sim_samples_signatures, cluster_rows = FALSE, cluster_cols = FALSE)
+```
+
+Estimate the absolute SNV burden attributed to each signature
+```{r}
+contrib<-read_excel(paste0(plot_dir, "signature_contributions_allsamples.xlsx"))
+contrib_yo<- contrib %>% filter(group %in% c("young", "old"))
+
+SBS1_palette=c("#7FC6A4", "#D6F8D6")
+
+pdf(file=paste0(plot_dir, "SBS1_mutations_boxplot_YvsO.pdf"), width = 2.5, height = 4)
+
+sbs1<-ggplot(contrib_yo, aes(x = group, y = SBS1_mutations, fill=group)) + 
+  geom_violin(trim=FALSE) +
+  geom_boxplot(width=0.05, color="white")+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = SBS1_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("SBS1 substitutions")
+
+sbs1
+
+dev.off()
+
+wilcox_test_SBS1_muts_YvsO <- wilcox.test(SBS1_mutations ~ group, data = contrib_yo)
+print(wilcox_test_SBS1_muts_YvsO)
+
+
+HSPC_palette=c("#713E5A", "#CA6680")
+
+pdf(file=paste0(plot_dir, "HSPC_mutations_boxplot_YvsO.pdf"), width = 2.5, height = 4)
+
+hspc<-ggplot(contrib_yo, aes(x = group, y = HSPC_mutations, fill=group)) + 
+  geom_violin(trim=FALSE) +
+  geom_boxplot(width=0.05, color="white")+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = HSPC_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("HSPC substitutions")
+
+hspc
+dev.off()
+
+wilcox_test_hspc_muts_YvsO <- wilcox.test(HSPC_mutations ~ group, data = contrib_yo)
+print(wilcox_test_hspc_muts_YvsO)
+
+
+SBS5_palette=c("#E57A44", "#EDC79B")
+
+pdf(file=paste0(plot_dir, "SBS5_mutations_boxplot_YvsO-20032024.pdf"), width = 2.5, height = 4)
+
+sbs5<-ggplot(contrib_yo, aes(x = group, y = SBS5_mutations, fill=group)) + 
+  geom_violin(trim=FALSE) +
+  geom_boxplot(width=0.05, color="white")+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = SBS5_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("SBS5 substitutions")
+
+sbs5
+dev.off()
+
+wilcox_test_sbs5_muts_YvsO <- wilcox.test(SBS5_mutations ~ group, data = contrib_yo)
+print(wilcox_test_sbs5_muts_YvsO)
+
+SBS18_palette=c( "#247BA0", "#BCEDF6")
+
+pdf(file=paste0(plot_dir, "SBS18_mutations_boxplot_YvsO-20032024.pdf"), width = 2.5, height = 4)
+ggplot(contrib_yo, aes(x = group, y = SBS18_mutations, fill=group)) + 
+  geom_violin(trim=FALSE) +
+  geom_boxplot(width=0.05, color="white")+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, alpha=0.7, color="grey18", fill="grey18")+
+  theme_classic()+
+  scale_fill_manual(values = SBS18_palette)+
+  guides(fill="none", color="none")+
+  geom_signif(comparisons = list(c("young", "old")), 
+                   map_signif_level = TRUE)+
+  ylab("SBS18 substitutions")
+dev.off()
+
+wilcox_sbs18_muts_YvsO <- wilcox.test(SBS18_mutations ~ group, data = contrib_yo)
+print(wilcox_test_sbs18_muts_YvsO)
+
+#patchwork
+hspc + sbs1 + sbs5 + sbs18
+
+```
+
+Linear regression to estimate the rate of acquisition of each signature
+```{r}
+#Add the "age" column 
+contrib_yo <- contrib_yo %>% mutate(age = case_when(
+   group == "young" ~ "8",  
+    group == "old" ~ "24" 
+  ))
+
+#HSPC
+model_hspc <- lm(HSPC_mutations ~ age, data = contrib_yo)
+summary(model_hspc)
+
+pdf(file=paste0(plot_dir, "HSPC_substitutions_LinRegr.pdf"), width = 4, height = 3)
+
+hspc_LR<-ggplot(contrib_yo, aes(x = age, y = HSPC_mutations, color = age)) +
+  geom_point(size=5, alpha=0.7) +                                  # Add points
+  geom_smooth(method = "lm", se = TRUE, color="grey18", size=0.5)+
+  theme_classic()+
+  scale_color_gradient(low = "#713E5A", high = "#CA6680")+
+  ylab("HSPC substitutions")+
+  xlab("Age (in months)")+
+  scale_x_continuous(breaks = seq(0, 24, by = 2), limits = c(0, 24))+
+  ylim(0,100)+
+  guides(color=FALSE)
+
+hspc_LR
+
+dev.off()
+
+
+#SBS5
+model_sbs5 <- lm(SBS5_mutations ~ age, data = contrib_yo)
+summary(model_sbs5)
+
+pdf(file=paste0(plot_dir, "SBS5_substitutions_LinRegr.pdf"), width = 4, height = 3)
+
+sbs5_LR<-ggplot(contrib_yo, aes(x = age, y = SBS5_mutations, color = age)) +
+  geom_point(size=5, alpha=0.7) +                                 
+  geom_smooth(method = "lm", se = TRUE, color="grey18", size=0.5)+
+  theme_classic()+
+  scale_color_gradient(low = "#E57A44", high = "#EDC79B")+
+  ylab("SBS5 substitutions")+
+  xlab("Age (in months)")+
+  scale_x_continuous(breaks = seq(0, 24, by = 2), limits = c(0, 24))+
+  ylim(0,120)+
+  guides(color=FALSE)
+
+sbs5_LR
+
+dev.off()
+```
+
