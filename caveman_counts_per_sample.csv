@@ -1,0 +1,59 @@
+,file,snvs,group,sample,callable_genome_size,snvs_norm,group_renamed
+1,sample_colony-h3_HSC-9A-1R_vs_MD6255x_filtered.vcf.gz,70,young,9A-1R_h3,2312997391,82.6464504127061,young
+2,sample_colony-g12_HSC-9A-1R_vs_MD6255x_filtered.vcf.gz,78,young,9A-1R_g12,2313343375,92.0779857732966,young
+3,sample_colony-c5-pos_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,101,LRC,old1_c5_pos,2315231040,119.131976208301,active
+4,sample_colony-c2-pos_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,85,LRC,old2_c2_pos,2315917842,100.229851240984,old
+5,sample_colony-c5_HSC-F7RRLL-PBS-Nanoseq1_vs_sample_tail_HSC-F7RRLL-PBS-Nanoseq1_filtered.vcf.gz,75,BBcontrol,F7RRLL-pbs_c5,2308071781,88.7387405955205,dormant
+6,sample_colony-g6-pos_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,128,LRC,old3_g6_pos,2314931197,150.99869383807,active
+7,sample_colony-a4_HSC-F6RL-PBS-Nanoseq1_vs_sample_tail_HSC-F6RL-PBS-Nanoseq1_filtered.vcf.gz,103,BBcontrol,F6RL-pbs_a4,2307167869,121.915616328306,active
+8,sample_colony-d11_HSC-4A-2L_vs_MD6264n_filtered.vcf.gz,120,old,4A-2L_d11,2311533474,141.769356388736,dormant
+9,sample_colony-a9_HSC-F6R-PBS-Nanoseq1_vs_sample_tail_HSC-F6R-PBS-Nanoseq1_filtered.vcf.gz,73,BBcontrol,F6R-pbs_a9,2308825212,86.3441885794861,dormant
+10,sample_colony-g4_HSC-9A-1R_vs_MD6255x_filtered.vcf.gz,113,young,9A-1R_g4,2309456643,133.619529683459,old
+11,sample_colony-d3_HSC-F6LL-PBS-Nanoseq1_vs_sample_tail_HSC-F6LL-PBS-Nanoseq1_filtered.vcf.gz,74,BBcontrol,F6LL-pbs_d3,2305697172,87.6457297732245,dormant
+12,sample_colony-g7-pos_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,66,LRC,old3_g7_pos,2315077256,77.8537893786815,Bak-/- Bax d/d
+13,sample_colony-b8_HSC-F7RRLL-PBS-Nanoseq1_vs_sample_tail_HSC-F7RRLL-PBS-Nanoseq1_filtered.vcf.gz,67,BBcontrol,F7RRLL-pbs_b8,2309204076,79.2344040787151,young
+14,sample_colony-g8_HSC-9A-2L_vs_MD6256x_filtered.vcf.gz,61,young,9A-2L_g8,2308549060,72.1592540961638,young
+15,sample_colony-b10-neg_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,128,nonLRC,old3_b10_neg,2315061336,150.990205588229,old
+16,sample_colony-con5_HSC-F2RRL-BBS9-pbs5_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,69,BBcontrol,F2RRL-pbs5,2311436742,81.5207913684709,dormant
+17,sample_colony-d3-pos_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,107,LRC,old1_d3_pos,2315464420,126.196402455625,young
+18,sample_colony-f9_HSC-4A-3RL_vs_MD6267z_filtered.vcf.gz,159,old,4A-3RL_f9,2312703404,187.749372148198,dormant
+19,sample_colony-e12-2_HSC-4A-2L_vs_MD6264n_filtered.vcf.gz,119,old,4A-2L_e12-2,2311518419,140.588860739682,dormant
+20,sample_colony-a5-neg_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,101,nonLRC,old3_a5_neg,2314988419,119.144461765016,Bak-/- Bax d/d
+21,sample_colony-c4-pos_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,69,LRC,old2_c4_pos,2314998293,81.3953742323558,Bak-/- Bax d/d
+22,sample_colony-con11_HSC-F2RRL-BBS21-pbs11_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,77,BBcontrol,F2RRL-pbs11,2309987526,91.0295506929071,Bak-/- Bax d/d
+23,sample_colony-e3_HSC-9A-4RR_vs_MD6257z_filtered.vcf.gz,70,young,9A-4RR_e3,2310702086,82.7285461584164,old
+24,sample_colony-e12_HSC-9A-4RR_vs_MD6257z_filtered.vcf.gz,56,young,9A-4RR_e12,2312555164,66.1298038311358,Bak-/- Bax d/d
+25,sample_colony-f5_HSC-9A-1R_vs_MD6255x_filtered.vcf.gz,61,young,9A-1R_f5,2309628282,72.1255361792457,dormant
+26,sample_colony-e8-neg_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,123,nonLRC,old1_e8_neg,2315155059,145.086277006036,Bak-/- Bax d/d
+27,sample_colony-f12_HSC-9A-4RR_vs_MD6257z_filtered.vcf.gz,90,young,9A-4RR_f12,2312711413,106.272861489961,active
+28,sample_colony-c3-pos_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,76,LRC,old1_c3_pos,2315079713,89.6497229268408,active
+29,sample_colony-e7_HSC-4B-3RL_vs_MD6266r_filtered.vcf.gz,114,old,4B-3RL_e7,2311690543,134.671737607225,old
+30,sample_colony-f11_HSC-4A-3RL_vs_MD6267z_filtered.vcf.gz,118,old,4A-3RL_f11,2307317234,139.661276127754,young
+31,sample_colony-d6-neg_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,124,nonLRC,old1_d6_neg,2314851925,146.284994007122,old
+32,sample_colony-c7-pos_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,74,LRC,old1_c7_pos,2315352654,87.2802296129184,young
+33,sample_colony-con17_HSC-F2RRL-BBS32-pbs17_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,65,BBcontrol,F2RRL-pbs17,2311212701,76.802392628423,Bak-/- Bax d/d
+34,sample_colony-g11_HSC-F6LL-PBS-Nanoseq1_vs_sample_tail_HSC-F6LL-PBS-Nanoseq1_filtered.vcf.gz,67,BBcontrol,F6LL-pbs_g11,2302080239,79.4795966527559,old
+35,sample_colony-b3-neg_HSC-LRC_old1_vs_sample_tail_HSC-LRC_old1_filtered.vcf.gz,103,nonLRC,old1_b3_neg,2314776515,121.514880982798,young
+36,sample_colony-c7_HSC-4B-3RL_vs_MD6266r_filtered.vcf.gz,110,old,4B-3RL_c7,2313154787,129.864156444797,dormant
+37,sample_colony-g3_HCS-9A-2L_vs_MD6256x_filtered.vcf.gz,161,young,9A-2L_g3,2305573865,190.69888078125,young
+38,sample_colony-d3_HSC-4A-3RL_vs_MD6267z_filtered.vcf.gz,141,old,4A-3RL_d3,2311794723,166.560169163428,dormant
+39,sample_colony-d6_HSC-F6RL-PBS-Nanoseq1_vs_sample_tail_HSC-F6RL-PBS-Nanoseq1_filtered.vcf.gz,87,BBcontrol,F6RL-pbs_d6,2306633181,103.001138757138,young
+40,sample_colony-neg-h3_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,86,nonLRC,old2_h3_neg,2314101233,101.488633779229,old
+41,sample_colony-h5_HSC-F6R-PBS-Nanoseq1_vs_sample_tail_HSC-F6R-PBS-Nanoseq1_filtered.vcf.gz,91,BBcontrol,F6R-pbs_h5,2305330126,107.797720001686,active
+42,sample_colony-con8_HSC-F2RRL-BBS18-pbs8_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,56,BBcontrol,F2RRL-pbs8,2308961458,66.2327293572347,Bak-/- Bax d/d
+43,sample_colony-b7-pos_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,70,LRC,old2_b7_pos,2316216093,82.5316017610452,Bak-/- Bax d/d
+44,sample_colony-g4-pos_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,79,LRC,old3_g4_pos,2314858763,93.1974224925964,active
+45,sample_colony-con12_HSC-F2RRL-BBS22-pbs12_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,67,BBcontrol,F2RRL-pbs12,2309258725,79.2325289830831,old
+46,sample_colony-f6_HSC-9A-4RR_vs_MD6257z_filtered.vcf.gz,71,young,9A-4RR_f6,2310066296,83.9334768399218,Bak-/- Bax d/d
+47,sample_colony-f2-pos_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,132,LRC,old3_f2_pos,2313122079,155.839191299337,active
+48,sample_colony-g4_HCS-9A-2L_vs_MD6256x_filtered.vcf.gz,64,young,9A-2L_g4,2311788760,75.6019739173747,active
+49,sample_colony-g4_HSC-F7RRLL-PBS-Nanoseq1_vs_sample_tail_HSC-F7RRLL-PBS-Nanoseq1_filtered.vcf.gz,77,BBcontrol,F7RRLL-pbs_g4,2305601892,91.2027038699186,young
+50,sample_colony-a6-pos_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,88,LRC,old2_a6_pos,2315746073,103.775072281856,young
+51,sample_colony-d4_HSC-4A-3RL_vs_MD6267z_filtered.vcf.gz,128,old,4A-3RL_d4,2310889973,151.262756408178,dormant
+52,sample_colony-b7-neg_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,121,nonLRC,old3_b7_neg,2314207125,142.785613735417,Bak-/- Bax d/d
+53,sample_colony-b8-neg_HSC-LRC_old3_vs_sample_tail_HSC-LRC_old3_filtered.vcf.gz,92,nonLRC,old3_b8_neg,2315103012,108.522256636414,old
+54,sample_colony-neg-g11_HSC-LRC_old2_vs_sample_tail_HSC-LRC_old2_filtered.vcf.gz,109,nonLRC,old2_g11_neg,2314462546,128.61086211157,Bak-/- Bax d/d
+55,sample_colony-con2_HSC-F2RRL-BBS3-pbs2_vs_sample_germline2_HSC-F2RRL-BBS14-tail_filtered.vcf.gz,70,BBcontrol,F2RRL-pbs2,2309547490,82.769904064627,Bak-/- Bax d/d
+56,sample_colony-c11_HSC-4B-3RL_vs_MD6266r_filtered.vcf.gz,136,old,4B-3RL_c11,2313082264,160.564354776446,Bak-/- Bax d/d
+57,sample_colony-f12_HSC-4A-2L_vs_MD6264n_filtered.vcf.gz,156,old,4A-2L_f12,2312901140,184.191182829371,Bak-/- Bax d/d
+58,sample_colony-e7_HSC-9A-2L_vs_MD6256x_filtered.vcf.gz,67,young,9A-2L_e7,2311510070,79.1553587555861,dormant
