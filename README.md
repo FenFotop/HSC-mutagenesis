@@ -20,7 +20,7 @@ This repository contains code and data accompanying the manuscript ***"Dormancy,
 ## Folders
 
 ### `benchmarking/`
-Scripts used to evaluate the effect of sequencing coverage on variant detection. BAM files from a deeply sequenced colony and matching tail were downsampled to increments of 10X to identify the optimal coverage threshold for the study. Example script is provided: `downsampling_bam_example.sh`. The '.Rmd' in this folder assesses overlap between call sets at each coverage level and produces the corresponding visualizations. 
+Scripts used to evaluate the effect of sequencing coverage on variant detection. BAM files from a deeply sequenced colony and matching tail were downsampled to increments of 10X to identify the optimal coverage threshold for the study. Example script is provided: `downsampling_bam_example.sh`. The `.Rmd` in this folder assesses overlap between call sets at each coverage level and produces the corresponding visualizations. 
 
 ### `downstream/`
 Post-variant-calling analyses applied to colony data. Includes:
