@@ -4,6 +4,16 @@ This repository contains code and data accompanying the manuscript ***"Dormancy,
 
 ---
 
+## Overview
+
+This repository contains the bioinformatic code used to analyse somatic mutation 
+acquisition in murine long-term haematopoietic stem cells (LT-HSCs). It covers 
+two sequencing approaches:
+- Whole-genome sequencing (WGS) of *in vitro* expanded single LT-HSC colonies 
+- NanoSeq duplex sequencing of LT-HSC mini-bulks
+
+---
+
 ## Repository Structure
 
 ```
