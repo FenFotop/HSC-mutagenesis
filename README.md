@@ -1,6 +1,8 @@
 # HSC-mutagenesis
 
-This repository contains code and data accompanying the manuscript ***"Dormancy, not apoptosis, restricts hematopoietic stem cell mutagenesis during aging."*** https://www.biorxiv.org/content/10.64898/2026.05.09.724021v1
+This repository contains code and data accompanying the manuscript:
+Fotopoulou, F. et al. *Dormancy, not apoptosis, restricts hematopoietic stem cell mutagenesis during aging.* bioRxiv https://doi.org/10.64898/2026.05.09.724021 **(2026)**.
+
 
 ---
 
