@@ -28,17 +28,23 @@ two sequencing approaches:
 ```
 
 ---
+## Installation
+This repository contains analysis scripts, therefore there is no single install step for all the tools used. Setup is environment-dependent per folder:
+
+- **R/Bioconductor packages** (`benchmarking/`, `downstream/`): install via `install.packages()` / `BiocManager::install()` using the versions and CRAN snapshot noted in each folder's section below.
+- **External tools** (Picard, VEP, bcftools, samtools, Caveman, Pindel, Delly, NanoSeq Nextflow pipeline): follow the installation instructions on the tools' own repositories/documentation. Versions used are listed per script below.
+
+**Note on compute environment:** The variant-calling and coverage-analysis scripts (`benchmarking/`, `variant_callers_colony_data/`, VEP annotation in `downstream/`) are designed to run on an HPC cluster, consistent with standard practice for WGS data. Raw BAM/VCF processing at this scale is not intended for a local desktop. R-based downstream analysis and plotting scripts (`downstream/`) are lightweight and can be run on a standard desktop once the required output tables/annotations are available.
 
 ## Folders
 
 ### `benchmarking/`
 Scripts used to evaluate the effect of sequencing coverage on variant detection. BAM files from a deeply sequenced colony and matching tail were downsampled to increments of 10X to identify the optimal coverage threshold for the study. Example script is provided: `downsampling_bam_example.sh`. The `.Rmd` in this folder assesses overlap between call sets at each coverage level and produces the corresponding visualizations. 
+
 **Requirements:**
 - Picard v1.61 (`downsampling_bam_example.sh`)
 - Computing resources for a run in the DKFZ HPC (LSF) are specified inside `downsampling_bam_example.sh`
 - R 4.3.0, with packages: dplyr 1.2.1, ggplot2 3.4.2, mgcv 1.8-42 (bundled with R 4.3.0), purrr 1.0.1, multcompView 0.1-9 (`benchmarking-analysis.Rmd`)
-
-
 
 ### `downstream/`
 Post-variant-calling analyses applied to colony data. Includes:
@@ -63,6 +69,7 @@ Example scripts demonstrating how to run each variant caller evaluated in the st
 ---
 
 ## Data Files
+These tables also serve as example input for the downstream analysis and plotting scripts (`downstream/`). Raw sequencing data are available at the European Nucleotide Archive (ENA) under accession PRJEB82854 (HSC-derived colonies WGS) and PRJEB112171 (NanoSeq).
 
 | File | Description |
 |------|-------------|
